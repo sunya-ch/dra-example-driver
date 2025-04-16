@@ -50,7 +50,7 @@ From here we will build the image for the example resource driver:
 
 And create a `kind` cluster to run it in:
 ```bash
-./demo/create-cluster.sh
+KIND_IMAGE=ghcr.io/sunya-ch/kindest/node:kep-5075 ./demo/create-cluster.sh
 ```
 
 Once the cluster has been created successfully, double check everything is
