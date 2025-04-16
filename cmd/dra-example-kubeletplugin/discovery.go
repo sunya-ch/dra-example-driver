@@ -28,42 +28,99 @@ import (
 	"github.com/google/uuid"
 )
 
-func enumerateAllPossibleDevices(numGPUs int) (AllocatableDevices, error) {
+type CapacityValue struct {
+	capacity string
+	value    resource.Quantity
+}
+
+var (
+	gpuPrefix    = "gpu-"
+	nicPrefix    = "nic-"
+	qosNicPrefix = "qos-nic-"
+	capacityMap  = map[string]CapacityValue{
+		gpuPrefix: CapacityValue{
+			capacity: "memory",
+			value:    resource.MustParse("80Gi"),
+		},
+		nicPrefix: CapacityValue{
+			capacity: "bandwidth",
+			value:    resource.MustParse("10Gi"),
+		},
+		qosNicPrefix: CapacityValue{
+			capacity: "bandwidth",
+			value:    resource.MustParse("10Gi"),
+		},
+	}
+	modelMap = map[string]string{
+		gpuPrefix:    "LATEST-GPU-MODEL",
+		nicPrefix:    "LATEST-NIC-MODEL",
+		qosNicPrefix: "LATEST-QOS-NIC-MODEL",
+	}
+	one = resource.MustParse("1")
+)
+
+func enumerateAllPossibleDevices(numGPUs, numShared, numSharedWithConsumable int) (AllocatableDevices, error) {
 	seed := os.Getenv("NODE_NAME")
-	uuids := generateUUIDs(seed, numGPUs)
+	gpuUuids := generateUUIDs(gpuPrefix, seed, numGPUs)
+	nicUuid := generateUUIDs(nicPrefix, seed, numShared)
+	qosNicUuid := generateUUIDs(qosNicPrefix, seed, numShared)
 
 	alldevices := make(AllocatableDevices)
-	for i, uuid := range uuids {
-		device := resourceapi.Device{
-			Name: fmt.Sprintf("gpu-%d", i),
-			Basic: &resourceapi.BasicDevice{
-				Attributes: map[resourceapi.QualifiedName]resourceapi.DeviceAttribute{
-					"index": {
-						IntValue: ptr.To(int64(i)),
-					},
-					"uuid": {
-						StringValue: ptr.To(uuid),
-					},
-					"model": {
-						StringValue: ptr.To("LATEST-GPU-MODEL"),
-					},
-					"driverVersion": {
-						VersionValue: ptr.To("1.0.0"),
-					},
-				},
-				Capacity: map[resourceapi.QualifiedName]resourceapi.DeviceCapacity{
-					"memory": {
-						Value: resource.MustParse("80Gi"),
-					},
-				},
-			},
-		}
+	for i, uuid := range gpuUuids {
+		device := generateDevice(gpuPrefix, i, uuid, false, false)
+		alldevices[device.Name] = device
+	}
+	for i, uuid := range nicUuid {
+		device := generateDevice(nicPrefix, i, uuid, true, false)
+		alldevices[device.Name] = device
+	}
+	for i, uuid := range qosNicUuid {
+		device := generateDevice(qosNicPrefix, i, uuid, true, true)
 		alldevices[device.Name] = device
 	}
 	return alldevices, nil
 }
 
-func generateUUIDs(seed string, count int) []string {
+func generateDevice(prefix string, i int, uuid string, shared bool, consumable bool) resourceapi.Device {
+	capacityValue := capacityMap[prefix]
+	deviceCapacity := resourceapi.DeviceCapacity{Value: capacityValue.value}
+	if consumable {
+		deviceCapacity.ClaimPolicy = &resourceapi.CapacityClaimPolicy{
+			Range: &resourceapi.CapacityClaimPolicyRange{
+				Minimum: one,
+			},
+		}
+	}
+	model := modelMap[prefix]
+	device := resourceapi.Device{
+		Name: fmt.Sprintf("%s%d", prefix, i),
+		Basic: &resourceapi.BasicDevice{
+			Attributes: map[resourceapi.QualifiedName]resourceapi.DeviceAttribute{
+				"index": {
+					IntValue: ptr.To(int64(i)),
+				},
+				"uuid": {
+					StringValue: ptr.To(uuid),
+				},
+				"model": {
+					StringValue: ptr.To(model),
+				},
+				"driverVersion": {
+					VersionValue: ptr.To("1.0.0"),
+				},
+			},
+			Capacity: map[resourceapi.QualifiedName]resourceapi.DeviceCapacity{
+				resourceapi.QualifiedName(capacityValue.capacity): deviceCapacity,
+			},
+		},
+	}
+	if shared {
+		device.Basic.Shared = ptr.To(true)
+	}
+	return device
+}
+
+func generateUUIDs(prefix, seed string, count int) []string {
 	rand := rand.New(rand.NewSource(hash(seed)))
 
 	uuids := make([]string, count)
@@ -71,7 +128,7 @@ func generateUUIDs(seed string, count int) []string {
 		charset := make([]byte, 16)
 		rand.Read(charset)
 		uuid, _ := uuid.FromBytes(charset)
-		uuids[i] = "gpu-" + uuid.String()
+		uuids[i] = prefix + uuid.String()
 	}
 
 	return uuids

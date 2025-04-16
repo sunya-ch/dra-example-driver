@@ -44,9 +44,11 @@ type Flags struct {
 	kubeClientConfig flags.KubeClientConfig
 	loggingConfig    *flags.LoggingConfig
 
-	nodeName   string
-	cdiRoot    string
-	numDevices int
+	nodeName                       string
+	cdiRoot                        string
+	numDevices                     int
+	numSharedDevices               int
+	numSharedDevicesWithConsumable int
 }
 
 type Config struct {
@@ -86,6 +88,20 @@ func newApp() *cli.App {
 			Value:       8,
 			Destination: &flags.numDevices,
 			EnvVars:     []string{"NUM_DEVICES"},
+		},
+		&cli.IntFlag{
+			Name:        "shared-devices",
+			Usage:       "The number of shared devices without consumable capacity to be generated.",
+			Value:       1,
+			Destination: &flags.numSharedDevices,
+			EnvVars:     []string{"NUM_SHARED_DEVICES"},
+		},
+		&cli.IntFlag{
+			Name:        "shared-devices-with-consumable-capacity",
+			Usage:       "The number of shared devices with consumable capacity to be generated.",
+			Value:       1,
+			Destination: &flags.numSharedDevicesWithConsumable,
+			EnvVars:     []string{"NUM_SHARED_DEVICES_WITH_CONSUMABLE"},
 		},
 	}
 	cliFlags = append(cliFlags, flags.kubeClientConfig.Flags()...)
