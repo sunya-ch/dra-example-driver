@@ -23,9 +23,9 @@ import (
 
 	resourceapi "k8s.io/api/resource/v1beta1"
 	"k8s.io/apimachinery/pkg/runtime"
-	drapbv1 "k8s.io/kubelet/pkg/apis/dra/v1beta1"
 	"k8s.io/kubernetes/pkg/kubelet/checkpointmanager"
 
+	"k8s.io/dynamic-resource-allocation/kubeletplugin"
 	configapi "sigs.k8s.io/dra-example-driver/api/example.com/resource/gpu/v1alpha1"
 	"sigs.k8s.io/dra-example-driver/pkg/consts"
 
@@ -44,14 +44,14 @@ type OpaqueDeviceConfig struct {
 }
 
 type PreparedDevice struct {
-	drapbv1.Device
+	kubeletplugin.Device
 	ContainerEdits *cdiapi.ContainerEdits
 }
 
-func (pds PreparedDevices) GetDevices() []*drapbv1.Device {
-	var devices []*drapbv1.Device
+func (pds PreparedDevices) GetDevices() []kubeletplugin.Device {
+	var devices []kubeletplugin.Device
 	for _, pd := range pds {
-		devices = append(devices, &pd.Device)
+		devices = append(devices, pd.Device)
 	}
 	return devices
 }
@@ -109,7 +109,7 @@ func NewDeviceState(config *Config) (*DeviceState, error) {
 	return state, nil
 }
 
-func (s *DeviceState) Prepare(claim *resourceapi.ResourceClaim) ([]*drapbv1.Device, error) {
+func (s *DeviceState) Prepare(claim *resourceapi.ResourceClaim) ([]kubeletplugin.Device, error) {
 	s.Lock()
 	defer s.Unlock()
 
@@ -253,8 +253,8 @@ func (s *DeviceState) prepareDevices(claim *resourceapi.ResourceClaim) (Prepared
 	for _, results := range configResultsMap {
 		for _, result := range results {
 			device := &PreparedDevice{
-				Device: drapbv1.Device{
-					RequestNames: []string{result.Request},
+				Device: kubeletplugin.Device{
+					Requests:     []string{result.Request},
 					PoolName:     result.Pool,
 					DeviceName:   result.Device,
 					CDIDeviceIDs: s.cdi.GetClaimDevices(string(claim.UID), []string{result.Device}),

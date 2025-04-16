@@ -21,6 +21,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"k8s.io/dynamic-resource-allocation/kubeletplugin"
 	drapbv1 "k8s.io/kubelet/pkg/apis/dra/v1beta1"
 )
 
@@ -35,9 +36,9 @@ func TestPreparedDevicesGetDevices(t *testing.T) {
 		},
 		"several PreparedDevices": {
 			preparedDevices: PreparedDevices{
-				{Device: drapbv1.Device{DeviceName: "dev1"}},
-				{Device: drapbv1.Device{DeviceName: "dev2"}},
-				{Device: drapbv1.Device{DeviceName: "dev3"}},
+				{Device: kubeletplugin.Device{DeviceName: "dev1"}},
+				{Device: kubeletplugin.Device{DeviceName: "dev2"}},
+				{Device: kubeletplugin.Device{DeviceName: "dev3"}},
 			},
 			expected: []*drapbv1.Device{
 				{DeviceName: "dev1"},

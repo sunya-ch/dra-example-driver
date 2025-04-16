@@ -33,7 +33,8 @@ import (
 )
 
 const (
-	PluginRegistrationPath     = "/var/lib/kubelet/plugins_registry/" + consts.DriverName + ".sock"
+	// Refer to default values in k8s.io/dynamic-resource-allocation/kubeletplugin/draplugin.go
+	PluginRegistrationPath     = "/var/lib/kubelet/plugins_registry/" + consts.DriverName + "-reg.sock"
 	DriverPluginPath           = "/var/lib/kubelet/plugins/" + consts.DriverName
 	DriverPluginSocketPath     = DriverPluginPath + "/plugin.sock"
 	DriverPluginCheckpointFile = "checkpoint.json"
