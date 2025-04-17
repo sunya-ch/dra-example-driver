@@ -1,0 +1,32 @@
+apiVersion: resource.k8s.io/v1beta1
+kind: DeviceClass
+metadata:
+  name: non-shared.device.x-k8s.io
+spec:
+  selectors:
+  - cel:
+      expression: |-
+        device.driver == "gpu.example.com" &&
+        device.shared == false
+---
+apiVersion: resource.k8s.io/v1beta1
+kind: DeviceClass
+metadata:
+  name: shared.device.x-k8s.io
+spec:
+  selectors:
+  - cel:
+      expression: |-
+        device.driver == "gpu.example.com" &&
+        device.shared == true && device.attributes["gpu.example.com"].model == "LATEST-NIC-MODEL"
+---
+apiVersion: resource.k8s.io/v1beta1
+kind: DeviceClass
+metadata:
+  name: qos-aware-shared.device.x-k8s.io
+spec:
+  selectors:
+  - cel:
+      expression: |-
+        device.driver == "gpu.example.com" &&
+        device.shared == true && device.attributes["gpu.example.com"].model == "LATEST-QOS-NIC-MODEL"

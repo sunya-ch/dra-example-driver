@@ -1,0 +1,87 @@
+# This demo verifies single device can be shared among multiple resource claims,
+# and it can guarantee the requested bandwidth.
+#
+# Step:
+# 1. kubectl create -f qos-aware-shared-device.yaml
+#    Expected result: two pods running, one pod pending
+# 2. kubectl delete po pod0 -n shared-device2 # remove one of running pods
+#    Expected result: two pods running
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: shared-device2
+---
+apiVersion: resource.k8s.io/v1beta1
+kind: ResourceClaimTemplate
+metadata:
+  namespace: shared-device2
+  name: shared-5gi-bw
+spec:
+  spec:
+    devices:
+      requests:
+      - name: nic
+        deviceClassName: qos-aware-shared.device.x-k8s.io
+        capacities:
+          requests:
+            bandwidth: 5Gi
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  namespace: shared-device2
+  name: pod0
+  labels:
+    app: pod
+spec:
+  containers:
+  - name: ctr0
+    image: ubuntu:22.04
+    command: ["bash", "-c"]
+    args: ["export; trap 'exit 0' TERM; sleep 9999 & wait"]
+    resources:
+      claims:
+      - name: nic
+  resourceClaims:
+  - name: nic
+    resourceClaimTemplateName: shared-5gi-bw
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  namespace: shared-device2
+  name: pod1
+  labels:
+    app: pod
+spec:
+  containers:
+  - name: ctr0
+    image: ubuntu:22.04
+    command: ["bash", "-c"]
+    args: ["export; trap 'exit 0' TERM; sleep 9999 & wait"]
+    resources:
+      claims:
+      - name: nic
+  resourceClaims:
+  - name: nic
+    resourceClaimTemplateName: shared-5gi-bw
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  namespace: shared-device2
+  name: pod2
+  labels:
+    app: pod
+spec:
+  containers:
+  - name: ctr0
+    image: ubuntu:22.04
+    command: ["bash", "-c"]
+    args: ["export; trap 'exit 0' TERM; sleep 9999 & wait"]
+    resources:
+      claims:
+      - name: nic
+  resourceClaims:
+  - name: nic
+    resourceClaimTemplateName: shared-5gi-bw
