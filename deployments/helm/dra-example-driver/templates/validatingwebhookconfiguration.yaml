@@ -12,7 +12,7 @@ webhooks:
 - name: "dra.example.com"
   rules:
   - apiGroups:   ["resource.k8s.io"]
-    apiVersions: ["v1beta1"]
+    apiVersions: ["v1", "v1beta1", "v1beta2"]
     operations:  ["CREATE", "UPDATE"]
     resources:   ["resourceclaims", "resourceclaimtemplates"]
     scope:       "Namespaced"
