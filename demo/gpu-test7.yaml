@@ -1,0 +1,86 @@
+# One shared, global claim providing access to a GPU, Another claim must allocate next device.
+# Two pods, each asking for access to the shared GPU with 40 GiB memory per each
+# The third pod should get the next GPU as the first GPU reaches its capacity.
+
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: gpu-test7
+---
+apiVersion: resource.k8s.io/v1
+kind: ResourceClaimTemplate
+metadata:
+  namespace: gpu-test7
+  name: single-40gb-gpu
+spec:
+  spec:
+    devices:
+      requests:
+      - name: gpu
+        exactly:
+          deviceClassName: gpu.example.com
+          capacity:
+            requests:
+              memory: 40Gi
+              thread: 50
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  namespace: gpu-test7
+  name: pod0
+  labels:
+    app: pod
+spec:
+  containers:
+  - name: ctr0
+    image: ubuntu:22.04
+    command: ["bash", "-c"]
+    args: ["export; trap 'exit 0' TERM; sleep 9999 & wait"]
+    resources:
+      claims:
+      - name: shared-gpu
+  resourceClaims:
+  - name: shared-gpu
+    resourceClaimTemplateName: single-40gb-gpu
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  namespace: gpu-test7
+  name: pod1
+  labels:
+    app: pod
+spec:
+  containers:
+  - name: ctr0
+    image: ubuntu:22.04
+    command: ["bash", "-c"]
+    args: ["export; trap 'exit 0' TERM; sleep 9999 & wait"]
+    resources:
+      claims:
+      - name: shared-gpu
+  resourceClaims:
+  - name: shared-gpu
+    resourceClaimTemplateName: single-40gb-gpu
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  namespace: gpu-test7
+  name: pod2
+  labels:
+    app: pod
+spec:
+  containers:
+  - name: ctr0
+    image: ubuntu:22.04
+    command: ["bash", "-c"]
+    args: ["export; trap 'exit 0' TERM; sleep 9999 & wait"]
+    resources:
+      claims:
+      - name: shared-gpu
+  resourceClaims:
+  - name: shared-gpu
+    resourceClaimTemplateName: single-40gb-gpu
