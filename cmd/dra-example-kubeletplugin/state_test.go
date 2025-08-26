@@ -21,13 +21,13 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	drapbv1 "k8s.io/kubelet/pkg/apis/dra/v1beta1"
+	drapbv1 "k8s.io/kubelet/pkg/apis/dra/v1"
 )
 
 func TestPreparedDevicesGetDevices(t *testing.T) {
 	tests := map[string]struct {
 		preparedDevices PreparedDevices
-		expected        []*drapbv1.Device
+		expected        []*DRADevice
 	}{
 		"nil PreparedDevices": {
 			preparedDevices: nil,
@@ -35,14 +35,14 @@ func TestPreparedDevicesGetDevices(t *testing.T) {
 		},
 		"several PreparedDevices": {
 			preparedDevices: PreparedDevices{
+				{Device: DRADevice{Device: drapbv1.Device{DeviceName: "dev1"}}},
+				{Device: DRADevice{Device: drapbv1.Device{DeviceName: "dev2"}}},
+				{Device: DRADevice{Device: drapbv1.Device{DeviceName: "dev3"}}},
+			},
+			expected: []*DRADevice{
 				{Device: drapbv1.Device{DeviceName: "dev1"}},
 				{Device: drapbv1.Device{DeviceName: "dev2"}},
 				{Device: drapbv1.Device{DeviceName: "dev3"}},
-			},
-			expected: []*drapbv1.Device{
-				{DeviceName: "dev1"},
-				{DeviceName: "dev2"},
-				{DeviceName: "dev3"},
 			},
 		},
 	}

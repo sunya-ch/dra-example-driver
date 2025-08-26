@@ -23,7 +23,8 @@ import (
 
 	resourceapi "k8s.io/api/resource/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	drapbv1 "k8s.io/kubelet/pkg/apis/dra/v1beta1"
+	"k8s.io/apimachinery/pkg/types"
+	drapbv1 "k8s.io/kubelet/pkg/apis/dra/v1"
 	"k8s.io/kubernetes/pkg/kubelet/checkpointmanager"
 
 	configapi "sigs.k8s.io/dra-example-driver/api/example.com/resource/gpu/v1alpha1"
@@ -43,13 +44,19 @@ type OpaqueDeviceConfig struct {
 	Config   runtime.Object
 }
 
-type PreparedDevice struct {
+// temporary workaround extending drapbv1
+type DRADevice struct {
 	drapbv1.Device
+	shareUID *types.UID
+}
+
+type PreparedDevice struct {
+	Device         DRADevice
 	ContainerEdits *cdiapi.ContainerEdits
 }
 
-func (pds PreparedDevices) GetDevices() []*drapbv1.Device {
-	var devices []*drapbv1.Device
+func (pds PreparedDevices) GetDevices() []*DRADevice {
+	var devices []*DRADevice
 	for _, pd := range pds {
 		devices = append(devices, &pd.Device)
 	}
@@ -109,7 +116,7 @@ func NewDeviceState(config *Config) (*DeviceState, error) {
 	return state, nil
 }
 
-func (s *DeviceState) Prepare(claim *resourceapi.ResourceClaim) ([]*drapbv1.Device, error) {
+func (s *DeviceState) Prepare(claim *resourceapi.ResourceClaim) ([]*DRADevice, error) {
 	s.Lock()
 	defer s.Unlock()
 
@@ -253,11 +260,14 @@ func (s *DeviceState) prepareDevices(claim *resourceapi.ResourceClaim) (Prepared
 	for _, results := range configResultsMap {
 		for _, result := range results {
 			device := &PreparedDevice{
-				Device: drapbv1.Device{
-					RequestNames: []string{result.Request},
-					PoolName:     result.Pool,
-					DeviceName:   result.Device,
-					CDIDeviceIDs: s.cdi.GetClaimDevices(string(claim.UID), []string{result.Device}),
+				Device: DRADevice{
+					Device: drapbv1.Device{
+						RequestNames: []string{result.Request},
+						PoolName:     result.Pool,
+						DeviceName:   result.Device,
+						CDIDeviceIDs: s.cdi.GetClaimDevices(string(claim.UID), []*resourceapi.DeviceRequestAllocationResult{result}),
+					},
+					shareUID: result.ShareID,
 				},
 				ContainerEdits: perDeviceCDIContainerEdits[result.Device],
 			}

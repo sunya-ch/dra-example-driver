@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"os"
 
+	resourceapi "k8s.io/api/resource/v1"
 	"sigs.k8s.io/dra-example-driver/pkg/consts"
 
 	cdiapi "tags.cncf.io/container-device-interface/pkg/cdi"
@@ -95,14 +96,17 @@ func (cdi *CDIHandler) CreateClaimSpecFile(claimUID string, devices PreparedDevi
 		claimEdits := cdiapi.ContainerEdits{
 			ContainerEdits: &cdispec.ContainerEdits{
 				Env: []string{
-					fmt.Sprintf("GPU_DEVICE_%s_RESOURCE_CLAIM=%s", device.DeviceName[4:], claimUID),
+					fmt.Sprintf("GPU_DEVICE_%s_RESOURCE_CLAIM=%s", device.Device.DeviceName[4:], claimUID),
 				},
 			},
 		}
 		claimEdits.Append(device.ContainerEdits)
-
+		deviceID := device.Device.DeviceName
+		if device.Device.shareUID != nil {
+			deviceID = fmt.Sprintf("%s-%s", deviceID, *device.Device.shareUID)
+		}
 		cdiDevice := cdispec.Device{
-			Name:           fmt.Sprintf("%s-%s", claimUID, device.DeviceName),
+			Name:           fmt.Sprintf("%s-%s", claimUID, deviceID),
 			ContainerEdits: *claimEdits.ContainerEdits,
 		}
 
@@ -123,12 +127,16 @@ func (cdi *CDIHandler) DeleteClaimSpecFile(claimUID string) error {
 	return cdi.cache.RemoveSpec(specName)
 }
 
-func (cdi *CDIHandler) GetClaimDevices(claimUID string, devices []string) []string {
+func (cdi *CDIHandler) GetClaimDevices(claimUID string, results []*resourceapi.DeviceRequestAllocationResult) []string {
 	cdiDevices := []string{
 		cdiparser.QualifiedName(cdiVendor, cdiClass, cdiCommonDeviceName),
 	}
 
-	for _, device := range devices {
+	for _, result := range results {
+		device := result.Device
+		if result.ShareID != nil {
+			device = fmt.Sprintf("%s-%s", device, *result.ShareID)
+		}
 		cdiDevice := cdiparser.QualifiedName(cdiVendor, cdiClass, fmt.Sprintf("%s-%s", claimUID, device))
 		cdiDevices = append(cdiDevices, cdiDevice)
 	}
