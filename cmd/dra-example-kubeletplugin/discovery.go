@@ -35,7 +35,8 @@ func enumerateAllPossibleDevices(numGPUs int) (AllocatableDevices, error) {
 	alldevices := make(AllocatableDevices)
 	for i, uuid := range uuids {
 		device := resourceapi.Device{
-			Name: fmt.Sprintf("gpu-%d", i),
+			Name:                     fmt.Sprintf("gpu-%d", i),
+			AllowMultipleAllocations: ptr.To(true),
 			Attributes: map[resourceapi.QualifiedName]resourceapi.DeviceAttribute{
 				"index": {
 					IntValue: ptr.To(int64(i)),
@@ -52,7 +53,24 @@ func enumerateAllPossibleDevices(numGPUs int) (AllocatableDevices, error) {
 			},
 			Capacity: map[resourceapi.QualifiedName]resourceapi.DeviceCapacity{
 				"memory": {
-					Value: resource.MustParse("80Gi"),
+					Value: resource.MustParse("80Gi"), // MPS - defaultPinnedDeviceMemoryLimit
+					RequestPolicy: &resourceapi.CapacityRequestPolicy{
+						Default: ptr.To(resource.MustParse("80Gi")),
+						ValidRange: &resourceapi.CapacityRequestPolicyRange{
+							Min:  ptr.To(resource.MustParse("1Gi")),
+							Step: ptr.To(resource.MustParse("512Mi")),
+						},
+					},
+				},
+				"thread": {
+					Value: resource.MustParse("100"), // MPS - defaultActiveThreadPercentage
+					RequestPolicy: &resourceapi.CapacityRequestPolicy{
+						Default: ptr.To(resource.MustParse("100")),
+						ValidRange: &resourceapi.CapacityRequestPolicyRange{
+							Min:  ptr.To(resource.MustParse("1")),
+							Step: ptr.To(resource.MustParse("1")),
+						},
+					},
 				},
 			},
 		}
