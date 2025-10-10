@@ -72,6 +72,18 @@ func enumerateAllPossibleDevices(numGPUs int) (AllocatableDevices, error) {
 						},
 					},
 				},
+				// count is used for limit device to be allocated by a specific request only once
+				// the other request can still request 0 to share.
+				"count": {
+					Value: resource.MustParse("1"), // MPS - defaultActiveThreadPercentage
+					RequestPolicy: &resourceapi.CapacityRequestPolicy{
+						Default: ptr.To(resource.MustParse("0")),
+						ValidValues: []resource.Quantity{
+							resource.MustParse("0"),
+							resource.MustParse("1"),
+						},
+					},
+				},
 			},
 		}
 		alldevices[device.Name] = device
