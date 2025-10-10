@@ -23,8 +23,9 @@ import (
 
 	resourceapi "k8s.io/api/resource/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	drapbv1 "k8s.io/kubelet/pkg/apis/dra/v1beta1"
+	drapbv1 "k8s.io/kubelet/pkg/apis/dra/v1"
 	"k8s.io/kubernetes/pkg/kubelet/checkpointmanager"
+	"k8s.io/utils/ptr"
 
 	configapi "sigs.k8s.io/dra-example-driver/api/example.com/resource/gpu/v1alpha1"
 	"sigs.k8s.io/dra-example-driver/pkg/consts"
@@ -252,12 +253,21 @@ func (s *DeviceState) prepareDevices(claim *resourceapi.ResourceClaim) (Prepared
 	var preparedDevices PreparedDevices
 	for _, results := range configResultsMap {
 		for _, result := range results {
+			var shareIDStr *string
+			if result.ShareID != nil {
+				shareIDStr = ptr.To(string(*result.ShareID))
+			}
+			deviceID := result.Device
+			if result.ShareID != nil {
+				deviceID = fmt.Sprintf("%s-%s", deviceID, *result.ShareID)
+			}
 			device := &PreparedDevice{
 				Device: drapbv1.Device{
 					RequestNames: []string{result.Request},
 					PoolName:     result.Pool,
 					DeviceName:   result.Device,
-					CDIDeviceIDs: s.cdi.GetClaimDevices(string(claim.UID), []string{result.Device}),
+					ShareId:      shareIDStr,
+					CdiDeviceIds: s.cdi.GetClaimDevices(string(claim.UID), []string{deviceID}),
 				},
 				ContainerEdits: perDeviceCDIContainerEdits[result.Device],
 			}

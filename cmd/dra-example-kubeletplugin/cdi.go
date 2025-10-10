@@ -100,9 +100,12 @@ func (cdi *CDIHandler) CreateClaimSpecFile(claimUID string, devices PreparedDevi
 			},
 		}
 		claimEdits.Append(device.ContainerEdits)
-
+		deviceID := device.DeviceName
+		if device.ShareId != nil {
+			deviceID = fmt.Sprintf("%s-%s", deviceID, *device.ShareId)
+		}
 		cdiDevice := cdispec.Device{
-			Name:           fmt.Sprintf("%s-%s", claimUID, device.DeviceName),
+			Name:           fmt.Sprintf("%s-%s", claimUID, deviceID),
 			ContainerEdits: *claimEdits.ContainerEdits,
 		}
 

@@ -29,6 +29,7 @@ import (
 	"k8s.io/dynamic-resource-allocation/kubeletplugin"
 	"k8s.io/dynamic-resource-allocation/resourceslice"
 	"k8s.io/klog/v2"
+	"k8s.io/utils/ptr"
 
 	"sigs.k8s.io/dra-example-driver/pkg/consts"
 )
@@ -123,11 +124,17 @@ func (d *driver) prepareResourceClaim(_ context.Context, claim *resourceapi.Reso
 	}
 	var prepared []kubeletplugin.Device
 	for _, preparedPB := range preparedPBs {
+		var shareID *types.UID
+		shareIdStr := preparedPB.GetShareId()
+		if shareIdStr != "" {
+			shareID = ptr.To(types.UID(shareIdStr))
+		}
 		prepared = append(prepared, kubeletplugin.Device{
 			Requests:     preparedPB.GetRequestNames(),
 			PoolName:     preparedPB.GetPoolName(),
 			DeviceName:   preparedPB.GetDeviceName(),
-			CDIDeviceIDs: preparedPB.GetCDIDeviceIDs(),
+			ShareID:      shareID,
+			CDIDeviceIDs: preparedPB.GetCdiDeviceIds(),
 		})
 	}
 
