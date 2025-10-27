@@ -1,4 +1,6 @@
 # please keep this alphabetized
+version: 2
+
 linters:
   enable:
     - asciicheck
@@ -6,10 +8,13 @@ linters:
     - forcetypeassert
     - gocritic
     - godot
+    - misspell
+    - staticcheck
+
+formatters:
+  enable:
     - gofmt
     - goimports
-    - misspell
-    - stylecheck
 
 run:
   tests: true

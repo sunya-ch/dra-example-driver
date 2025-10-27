@@ -173,7 +173,8 @@ func TestResourceClaimValidatingWebhook(t *testing.T) {
 
 			responseBody, err := io.ReadAll(res.Body)
 			require.NoError(t, err)
-			res.Body.Close()
+			err = res.Body.Close()
+			require.NoError(t, err)
 
 			responseAdmissionReview, err := readAdmissionReview(responseBody)
 			assert.NoError(t, err)
