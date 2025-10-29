@@ -23,10 +23,12 @@ import (
 
 	resourceapi "k8s.io/api/resource/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	drapbv1 "k8s.io/kubelet/pkg/apis/dra/v1beta1"
+	drapbv1 "k8s.io/kubelet/pkg/apis/dra/v1"
 	"k8s.io/kubernetes/pkg/kubelet/checkpointmanager"
+	"k8s.io/utils/ptr"
 
 	configapi "sigs.k8s.io/dra-example-driver/api/example.com/resource/gpu/v1alpha1"
+	driverconfig "sigs.k8s.io/dra-example-driver/pkg/config"
 	"sigs.k8s.io/dra-example-driver/pkg/consts"
 
 	cdiapi "tags.cncf.io/container-device-interface/pkg/cdi"
@@ -61,15 +63,23 @@ type DeviceState struct {
 	cdi               *CDIHandler
 	allocatable       AllocatableDevices
 	checkpointManager checkpointmanager.CheckpointManager
+
+	DriverName string
 }
 
-func NewDeviceState(config *Config) (*DeviceState, error) {
-	allocatable, err := enumerateAllPossibleDevices(config.flags.numDevices)
+func NewDeviceState(rsConfig driverconfig.ResourceSliceConfig, config *Config) (*DeviceState, error) {
+
+	allocatable, err := enumerateAllPossibleDevices(rsConfig, config.flags.numDevices)
 	if err != nil {
 		return nil, fmt.Errorf("error enumerating all possible devices: %v", err)
 	}
 
-	cdi, err := NewCDIHandler(config)
+	driverName := consts.DefaultDriverName
+	if rsConfig.DriverName != "" {
+		driverName = rsConfig.DriverName
+	}
+
+	cdi, err := NewCDIHandler(driverName, rsConfig, config)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create CDI handler: %v", err)
 	}
@@ -79,13 +89,14 @@ func NewDeviceState(config *Config) (*DeviceState, error) {
 		return nil, fmt.Errorf("unable to create CDI spec file for common edits: %v", err)
 	}
 
-	checkpointManager, err := checkpointmanager.NewCheckpointManager(config.DriverPluginPath())
+	checkpointManager, err := checkpointmanager.NewCheckpointManager(config.DriverPluginPath(driverName))
 	if err != nil {
 		return nil, fmt.Errorf("unable to create checkpoint manager: %v", err)
 	}
 
 	state := &DeviceState{
 		cdi:               cdi,
+		DriverName:        driverName,
 		allocatable:       allocatable,
 		checkpointManager: checkpointManager,
 	}
@@ -181,7 +192,7 @@ func (s *DeviceState) prepareDevices(claim *resourceapi.ResourceClaim) (Prepared
 	// Retrieve the full set of device configs for the driver.
 	configs, err := GetOpaqueDeviceConfigs(
 		configapi.Decoder,
-		consts.DriverName,
+		s.DriverName,
 		claim.Status.Allocation.Devices.Config,
 	)
 	if err != nil {
@@ -252,12 +263,23 @@ func (s *DeviceState) prepareDevices(claim *resourceapi.ResourceClaim) (Prepared
 	var preparedDevices PreparedDevices
 	for _, results := range configResultsMap {
 		for _, result := range results {
+			deviceID := result.Device
+			var shareIDStr *string
+			if s.cdi.consumableCapacityFeature {
+				if result.ShareID != nil {
+					shareIDStr = ptr.To(string(*result.ShareID))
+				}
+				if result.ShareID != nil {
+					deviceID = fmt.Sprintf("%s-%s", deviceID, *result.ShareID)
+				}
+			}
 			device := &PreparedDevice{
 				Device: drapbv1.Device{
 					RequestNames: []string{result.Request},
 					PoolName:     result.Pool,
 					DeviceName:   result.Device,
-					CDIDeviceIDs: s.cdi.GetClaimDevices(string(claim.UID), []string{result.Device}),
+					ShareId:      shareIDStr,
+					CdiDeviceIds: s.cdi.GetClaimDevices(string(claim.UID), []string{deviceID}),
 				},
 				ContainerEdits: perDeviceCDIContainerEdits[result.Device],
 			}
@@ -353,7 +375,7 @@ func GetOpaqueDeviceConfigs(
 	for _, config := range candidateConfigs {
 		// If this is nil, the driver doesn't support some future API extension
 		// and needs to be updated.
-		if config.DeviceConfiguration.Opaque == nil {
+		if config.Opaque == nil {
 			return nil, fmt.Errorf("only opaque parameters are supported by this driver")
 		}
 
@@ -361,11 +383,11 @@ func GetOpaqueDeviceConfigs(
 		// single request can be satisfied by different drivers. This is not
 		// an error -- drivers must skip over other driver's configs in order
 		// to support this.
-		if config.DeviceConfiguration.Opaque.Driver != driverName {
+		if config.Opaque.Driver != driverName {
 			continue
 		}
 
-		decodedConfig, err := runtime.Decode(decoder, config.DeviceConfiguration.Opaque.Parameters.Raw)
+		decodedConfig, err := runtime.Decode(decoder, config.Opaque.Parameters.Raw)
 		if err != nil {
 			return nil, fmt.Errorf("error decoding config parameters: %w", err)
 		}

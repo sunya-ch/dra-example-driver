@@ -1,0 +1,18 @@
+# Example 2
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: highbw-required-pod
+spec:
+  containers:
+  - name: ctr0
+    image: ubuntu:22.04
+    command: ["bash", "-c"]
+    args: ["export; trap 'exit 0' TERM; sleep 9999 & wait"]
+    resources:
+      claims:
+      - name: nic
+  resourceClaims:
+  - name: nic
+    resourceClaimTemplateName: with-highbw-secondary-network-8g

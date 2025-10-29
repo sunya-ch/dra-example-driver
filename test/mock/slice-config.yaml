@@ -1,0 +1,40 @@
+prefix: "dev-"
+features:
+  DRAConsumableCapacity: true
+common:
+  allowMultipleAllocations: true
+  attributes:
+    driverVersion:
+      version: "1.0.0"
+    model:
+      string: "LATEST-GPU-MODEL"
+  capacity:
+    sm:
+      value: "100"
+      requestPolicy:
+        default: "100"
+        validRange:
+          min: "10"
+          step: "10"
+          max: "100"
+    memory:
+      value: "80Gi"
+      requestPolicy:
+        default: "80Gi"
+        validValues:
+        - "5Gi"
+        - "10Gi"
+        - "20Gi"
+        - "40Gi"
+        - "80Gi"
+patch:
+  sharedCounters:
+  - name: counter-set
+    counters:
+      memory:
+        value: "80Gi"
+  devices:
+    dev-1:
+      attributes:
+        dma:
+          bool: true

@@ -1,0 +1,36 @@
+# Example 2
+#   A pod requests two distinct network
+
+apiVersion: resource.k8s.io/v1
+kind: ResourceClaim
+metadata:
+  name: with-any-1-distinct-secondary-network-2g
+spec:
+  devices:
+    requests:
+    - name: req0
+      exactly:
+        deviceClassName: primary.networking.x-k8s.io
+    - name: req1
+      exactly:
+        deviceClassName: secondary.networking.x-k8s.io
+        capacity:
+          requests:
+            egressbw: "2G"
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: small-requirement-pod
+spec:
+  containers:
+  - name: ctr0
+    image: ubuntu:22.04
+    command: ["bash", "-c"]
+    args: ["export; trap 'exit 0' TERM; sleep 9999 & wait"]
+    resources:
+      claims:
+      - name: nic
+  resourceClaims:
+  - name: nic
+    resourceClaimName: with-any-1-distinct-secondary-network-2g

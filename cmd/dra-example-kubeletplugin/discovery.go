@@ -22,20 +22,22 @@ import (
 	"os"
 
 	resourceapi "k8s.io/api/resource/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/utils/ptr"
+
+	"sigs.k8s.io/dra-example-driver/pkg/config"
 
 	"github.com/google/uuid"
 )
 
-func enumerateAllPossibleDevices(numGPUs int) (AllocatableDevices, error) {
+func enumerateAllPossibleDevices(rsConfig config.ResourceSliceConfig, numGPUs int) (AllocatableDevices, error) {
 	seed := os.Getenv("NODE_NAME")
-	uuids := generateUUIDs(seed, numGPUs)
-
+	uuids := generateUUIDs(rsConfig.Prefix, seed, numGPUs)
 	alldevices := make(AllocatableDevices)
+	fmt.Println("enumerateAllPossibleDevices", rsConfig)
 	for i, uuid := range uuids {
-		device := resourceapi.Device{
-			Name: fmt.Sprintf("gpu-%d", i),
+		name := fmt.Sprintf("%s%d", rsConfig.Prefix, i)
+		device := &resourceapi.Device{
+			Name: name,
 			Attributes: map[resourceapi.QualifiedName]resourceapi.DeviceAttribute{
 				"index": {
 					IntValue: ptr.To(int64(i)),
@@ -43,25 +45,23 @@ func enumerateAllPossibleDevices(numGPUs int) (AllocatableDevices, error) {
 				"uuid": {
 					StringValue: ptr.To(uuid),
 				},
-				"model": {
-					StringValue: ptr.To("LATEST-GPU-MODEL"),
-				},
-				"driverVersion": {
-					VersionValue: ptr.To("1.0.0"),
-				},
-			},
-			Capacity: map[resourceapi.QualifiedName]resourceapi.DeviceCapacity{
-				"memory": {
-					Value: resource.MustParse("80Gi"),
+				"name": {
+					StringValue: ptr.To(name),
 				},
 			},
 		}
-		alldevices[device.Name] = device
+		fmt.Println(">", uuid, name, rsConfig.Patch.Devices[name])
+		applyDeviceConfig(device, rsConfig.Common)
+
+		if patch, found := rsConfig.Patch.Devices[name]; found {
+			applyDeviceConfig(device, patch)
+		}
+		alldevices[device.Name] = *device
 	}
 	return alldevices, nil
 }
 
-func generateUUIDs(seed string, count int) []string {
+func generateUUIDs(prefix, seed string, count int) []string {
 	rand := rand.New(rand.NewSource(hash(seed)))
 
 	uuids := make([]string, count)
@@ -69,7 +69,7 @@ func generateUUIDs(seed string, count int) []string {
 		charset := make([]byte, 16)
 		rand.Read(charset)
 		uuid, _ := uuid.FromBytes(charset)
-		uuids[i] = "gpu-" + uuid.String()
+		uuids[i] = prefix + uuid.String()
 	}
 
 	return uuids
@@ -81,4 +81,27 @@ func hash(s string) int64 {
 		h = 31*h + int64(c)
 	}
 	return h
+}
+
+func applyDeviceConfig(device *resourceapi.Device, deviceConfig config.Device) {
+	if deviceConfig.AllowMultipleAllocations != nil {
+		device.AllowMultipleAllocations = deviceConfig.AllowMultipleAllocations
+	}
+	if len(device.Attributes) > 0 && device.Attributes == nil {
+		device.Attributes = make(map[resourceapi.QualifiedName]resourceapi.DeviceAttribute)
+	}
+	for name, attribute := range deviceConfig.Attributes {
+		device.Attributes[resourceapi.QualifiedName(name)] = resourceapi.DeviceAttribute{
+			IntValue:     attribute.IntValue,
+			BoolValue:    attribute.BoolValue,
+			StringValue:  attribute.StringValue,
+			VersionValue: attribute.VersionValue,
+		}
+	}
+	if len(deviceConfig.Capacity) > 0 && device.Capacity == nil {
+		device.Capacity = make(map[resourceapi.QualifiedName]resourceapi.DeviceCapacity)
+	}
+	for name, capacity := range deviceConfig.Capacity {
+		device.Capacity[resourceapi.QualifiedName(name)] = capacity.ConvertToResourceAPI()
+	}
 }

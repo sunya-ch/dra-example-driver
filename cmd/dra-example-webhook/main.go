@@ -35,6 +35,7 @@ import (
 	"k8s.io/klog/v2"
 
 	configapi "sigs.k8s.io/dra-example-driver/api/example.com/resource/gpu/v1alpha1"
+	driverconfig "sigs.k8s.io/dra-example-driver/pkg/config"
 	"sigs.k8s.io/dra-example-driver/pkg/consts"
 	"sigs.k8s.io/dra-example-driver/pkg/flags"
 )
@@ -260,9 +261,14 @@ func admitResourceClaimParameters(ar admissionv1.AdmissionReview) *admissionv1.A
 		}
 	}
 
+	driverName := consts.DefaultDriverName
+	if rsConfig, err := driverconfig.GetResourceSliceConfig(); err == nil && rsConfig.DriverName != "" {
+		driverName = rsConfig.DriverName
+	}
+
 	var errs []error
 	for configIndex, config := range deviceConfigs {
-		if config.Opaque == nil || config.Opaque.Driver != consts.DriverName {
+		if config.Opaque == nil || config.Opaque.Driver != driverName {
 			continue
 		}
 

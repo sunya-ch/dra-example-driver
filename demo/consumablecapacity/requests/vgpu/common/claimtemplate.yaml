@@ -1,0 +1,127 @@
+# Example resource claim template for GPU with resources:
+# - 100% threads
+# - 80Gi memory
+#
+# This example separates template for prefill and decode.
+# Prefill is generally benefial with high parallelism and needs compute.
+# While, decode is usually memory-bound and not needs much compute compared to prefill.
+#
+# This example contains templates for llama and granite model.
+# Expect llama needs higher memory and parallelism.
+#
+# 1 node with 8 GPUs can be shared (at most packed) for
+# - 2 x prefill-llama 8 x decode-llama
+# - or 4 prefill-granite 24 x decode-granite
+# - or 1 x prefill-llama 4 decode-llama + 2 prefill-granite 12 x decode-granite
+#
+apiVersion: resource.k8s.io/v1
+kind: ResourceClaimTemplate
+metadata:
+  name: rc-1b-model
+spec:
+  spec:
+    devices:
+      requests:
+      - name: gpu
+        exactly:
+          deviceClassName: vgpu.example.com
+          capacity:
+            requests:
+              memory: 4Gi
+              sm: "5"
+---
+apiVersion: resource.k8s.io/v1
+kind: ResourceClaimTemplate
+metadata:
+  name: rc-7b-model
+spec:
+  spec:
+    devices:
+      requests:
+      - name: gpu
+        exactly:
+          deviceClassName: vgpu.example.com
+          capacity:
+            requests:
+              memory: 24Gi
+              sm: "30"
+---
+apiVersion: resource.k8s.io/v1
+kind: ResourceClaimTemplate
+metadata:
+  name: rc-13b-model
+spec:
+  spec:
+    devices:
+      requests:
+      - name: gpu
+        exactly:
+          deviceClassName: vgpu.example.com
+---
+apiVersion: resource.k8s.io/v1
+kind: ResourceClaimTemplate
+metadata:
+  name: llm-d-prefill-llama
+spec:
+  spec:
+    devices:
+      requests:
+      - name: gpu
+        exactly:
+          count: 4
+          deviceClassName: vgpu.example.com
+          capacity:
+            requests:
+              memory: 40Gi
+              sm: "70"
+              count: "1"
+---
+apiVersion: resource.k8s.io/v1
+kind: ResourceClaimTemplate
+metadata:
+  name: llm-d-decode-llama
+spec:
+  spec:
+    devices:
+      requests:
+      - name: gpu
+        exactly:
+          deviceClassName: vgpu.example.com
+          capacity:
+            requests:
+              memory: 40Gi
+              sm: "30"
+---
+apiVersion: resource.k8s.io/v1
+kind: ResourceClaimTemplate
+metadata:
+  name: llm-d-prefill-granite
+spec:
+  spec:
+    devices:
+      requests:
+      - name: gpu
+        exactly:
+          count: 2
+          deviceClassName: vgpu.example.com
+          capacity:
+            requests:
+              memory: 20Gi
+              sm: "40"
+              count: "1"
+---
+apiVersion: resource.k8s.io/v1
+kind: ResourceClaimTemplate
+metadata:
+  name: llm-d-decode-granite
+spec:
+  spec:
+    devices:
+      requests:
+      - name: gpu
+        exactly:
+          deviceClassName: vgpu.example.com
+          capacity:
+            requests:
+              memory: 20Gi
+              sm: "20"

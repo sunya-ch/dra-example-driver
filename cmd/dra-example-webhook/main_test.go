@@ -228,7 +228,7 @@ func resourceClaimSpecWithGpuConfigs(gpuConfigs ...*configapi.GpuConfig) resourc
 		deviceConfig := resourceapi.DeviceClaimConfiguration{
 			DeviceConfiguration: resourceapi.DeviceConfiguration{
 				Opaque: &resourceapi.OpaqueDeviceConfiguration{
-					Driver: consts.DriverName,
+					Driver: consts.DefaultDriverName,
 					Parameters: runtime.RawExtension{
 						Object: gpuConfig,
 					},

@@ -16,4 +16,7 @@
 
 package consts
 
-const DriverName = "gpu.example.com"
+const (
+	DefaultDriverName = "gpu.example.com"
+	DefaultPrefix     = "gpu-"
+)

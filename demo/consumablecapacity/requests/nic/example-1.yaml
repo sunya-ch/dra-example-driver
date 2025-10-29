@@ -1,0 +1,36 @@
+# Example 1
+#   Two Pods with only primary network
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pod0
+spec:
+  containers:
+  - name: ctr0
+    image: ubuntu:22.04
+    command: ["bash", "-c"]
+    args: ["export; trap 'exit 0' TERM; sleep 9999 & wait"]
+    resources:
+      claims:
+      - name: nic
+  resourceClaims:
+  - name: nic
+    resourceClaimTemplateName: only-primary-network
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pod1
+spec:
+  containers:
+  - name: ctr0
+    image: ubuntu:22.04
+    command: ["bash", "-c"]
+    args: ["export; trap 'exit 0' TERM; sleep 9999 & wait"]
+    resources:
+      claims:
+      - name: nic
+  resourceClaims:
+  - name: nic
+    resourceClaimTemplateName: only-primary-network

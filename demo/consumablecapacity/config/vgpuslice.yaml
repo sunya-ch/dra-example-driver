@@ -1,0 +1,22 @@
+driverName: vgpu.example.com
+features:
+  DRAConsumableCapacity: true
+prefix: gpu-
+common:
+  allowMultipleAllocations: true
+  capacity:
+    count:
+      value: "1"
+      requestPolicy:
+        default: "0"
+    sm:
+      value: "100"
+      requestPolicy:
+        default: "100"
+        min: "1"
+    memory:
+      value: "80Gi"
+      requestPolicy:
+        default: "80Gi"
+        min: "512Mi"
+        step: "512Mi"

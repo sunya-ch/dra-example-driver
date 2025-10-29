@@ -1,0 +1,26 @@
+driverName: nic.networking.io
+features:
+  DRAConsumableCapacity: true
+prefix: eth
+common:
+  allowMultipleAllocations: true
+  capacity:
+    egressbw:
+      value: "10G"
+      requestPolicy:
+        default: "1G"
+        validRange:
+          min: "1G"
+patch:
+  devices:
+    eth0:
+      capacity:
+        egressbw:
+          value: "1G"
+          requestPolicy: # infinite share
+            default: "0"
+            validValues: ["0"]
+    eth1:
+      capacity:
+        egressbw:
+          value: "5G" # no policy

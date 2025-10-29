@@ -1,0 +1,26 @@
+apiVersion: resource.k8s.io/v1
+kind: DeviceClass
+metadata:
+  name: primary.networking.x-k8s.io
+spec:
+  selectors:
+  - cel:
+      expression: device.driver == 'nic.networking.io' && device.attributes['nic.networking.io'].name == 'eth0'
+---
+apiVersion: resource.k8s.io/v1
+kind: DeviceClass
+metadata:
+  name: secondary.networking.x-k8s.io
+spec:
+  selectors:
+  - cel:
+      expression: device.driver == 'nic.networking.io' && device.attributes['nic.networking.io'].name != 'eth0'
+---
+apiVersion: resource.k8s.io/v1
+kind: DeviceClass
+metadata:
+  name: highbw.networking.x-k8s.io
+spec:
+  selectors:
+  - cel:
+      expression: device.driver == 'nic.networking.io' && device.capacity['nic.networking.io'].egressbw.compareTo(quantity("10G")) >= 0

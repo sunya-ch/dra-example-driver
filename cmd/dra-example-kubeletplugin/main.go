@@ -31,7 +31,6 @@ import (
 	"k8s.io/dynamic-resource-allocation/kubeletplugin"
 	"k8s.io/klog/v2"
 
-	"sigs.k8s.io/dra-example-driver/pkg/consts"
 	"sigs.k8s.io/dra-example-driver/pkg/flags"
 )
 
@@ -57,8 +56,8 @@ type Config struct {
 	cancelMainCtx func(error)
 }
 
-func (c Config) DriverPluginPath() string {
-	return filepath.Join(c.flags.kubeletPluginsDirectoryPath, consts.DriverName)
+func (c Config) DriverPluginPath(driverName string) string {
+	return filepath.Join(c.flags.kubeletPluginsDirectoryPath, driverName)
 }
 
 func main() {
@@ -152,11 +151,6 @@ func newApp() *cli.App {
 
 func RunPlugin(ctx context.Context, config *Config) error {
 	logger := klog.FromContext(ctx)
-
-	err := os.MkdirAll(config.DriverPluginPath(), 0750)
-	if err != nil {
-		return err
-	}
 
 	info, err := os.Stat(config.flags.cdiRoot)
 	switch {

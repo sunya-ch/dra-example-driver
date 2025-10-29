@@ -1,0 +1,76 @@
+apiVersion: resource.k8s.io/v1
+kind: ResourceClaimTemplate
+metadata:
+  name: only-primary-network
+spec:
+  spec:
+    devices:
+      requests:
+      - name: req0
+        exactly:
+          deviceClassName: primary.networking.x-k8s.io
+---
+apiVersion: resource.k8s.io/v1
+kind: ResourceClaimTemplate
+metadata:
+  name: with-any-2-distinct-secondary-network-2g
+spec:
+  spec:
+    devices:
+      requests:
+      - name: req0
+        exactly:
+          deviceClassName: primary.networking.x-k8s.io
+      - name: req1
+        exactly:
+          count: 2
+          deviceClassName: secondary.networking.x-k8s.io
+          capacity:
+            requests:
+              egressbw: "2G"
+      constraints:
+      - distinctAttribute: nic.networking.io/name
+        requests:
+        - req1
+---
+apiVersion: resource.k8s.io/v1
+kind: ResourceClaimTemplate
+metadata:
+  name: with-highbw-preferred-secondary-network-5g
+spec:
+  spec:
+    devices:
+      requests:
+      - name: req0
+        exactly:
+          deviceClassName: primary.networking.x-k8s.io
+      - name: req1
+        firstAvailable:
+        - capacity:
+            requests:
+              egressbw: "5G"
+          deviceClassName: highbw.networking.x-k8s.io
+          name: highbw
+        - capacity:
+            requests:
+              egressbw: "5G"
+          deviceClassName: secondary.networking.x-k8s.io
+          name: any
+---
+apiVersion: resource.k8s.io/v1
+kind: ResourceClaimTemplate
+metadata:
+  name: with-highbw-secondary-network-8g
+spec:
+  spec:
+    devices:
+      requests:
+      - name: req0
+        exactly:
+          deviceClassName: primary.networking.x-k8s.io
+      - name: req1
+        exactly:
+          deviceClassName: highbw.networking.x-k8s.io
+          capacity:
+            requests:
+              egressbw: "8G"

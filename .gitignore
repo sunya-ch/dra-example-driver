@@ -6,3 +6,10 @@ vendor/
 
 driver_image.tar
 *.tgz
+
+demo/consumablecapacity/generated_*
+
+dra-example-kubeletplugin
+dra-example-webhook
+bin
+logcheck

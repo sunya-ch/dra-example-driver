@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"os"
 
 	resourceapi "k8s.io/api/resource/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -29,8 +30,9 @@ import (
 	"k8s.io/dynamic-resource-allocation/kubeletplugin"
 	"k8s.io/dynamic-resource-allocation/resourceslice"
 	"k8s.io/klog/v2"
+	"k8s.io/utils/ptr"
 
-	"sigs.k8s.io/dra-example-driver/pkg/consts"
+	driverconfig "sigs.k8s.io/dra-example-driver/pkg/config"
 )
 
 type driver struct {
@@ -39,6 +41,8 @@ type driver struct {
 	state       *DeviceState
 	healthcheck *healthcheck
 	cancelCtx   func(error)
+
+	consumableCapacityFeature bool
 }
 
 func NewDriver(ctx context.Context, config *Config) (*driver, error) {
@@ -46,21 +50,33 @@ func NewDriver(ctx context.Context, config *Config) (*driver, error) {
 		client:    config.coreclient,
 		cancelCtx: config.cancelMainCtx,
 	}
+	rsConfig, err := driverconfig.GetResourceSliceConfig()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get ResourceSliceConfig: %v", err)
+	}
+	// set features
+	driver.consumableCapacityFeature = rsConfig.ConsumableCapacityFeature()
 
-	state, err := NewDeviceState(config)
+	state, err := NewDeviceState(rsConfig, config)
 	if err != nil {
 		return nil, err
 	}
 	driver.state = state
+
+	driverPluginPath := config.DriverPluginPath(state.DriverName)
+	err = os.MkdirAll(driverPluginPath, 0750)
+	if err != nil {
+		return nil, err
+	}
 
 	helper, err := kubeletplugin.Start(
 		ctx,
 		driver,
 		kubeletplugin.KubeClient(config.coreclient),
 		kubeletplugin.NodeName(config.flags.nodeName),
-		kubeletplugin.DriverName(consts.DriverName),
+		kubeletplugin.DriverName(state.DriverName),
 		kubeletplugin.RegistrarDirectoryPath(config.flags.kubeletRegistrarDirectoryPath),
-		kubeletplugin.PluginDataDirectoryPath(config.DriverPluginPath()),
+		kubeletplugin.PluginDataDirectoryPath(driverPluginPath),
 	)
 	if err != nil {
 		return nil, err
@@ -71,19 +87,23 @@ func NewDriver(ctx context.Context, config *Config) (*driver, error) {
 	for device := range maps.Values(state.allocatable) {
 		devices = append(devices, device)
 	}
+	slice := &resourceslice.Slice{
+		Devices: devices,
+	}
+	for _, counter := range rsConfig.Patch.SharedCounters {
+		slice.SharedCounters = append(slice.SharedCounters, counter.ConvertToResourceAPI())
+	}
 	resources := resourceslice.DriverResources{
 		Pools: map[string]resourceslice.Pool{
 			config.flags.nodeName: {
 				Slices: []resourceslice.Slice{
-					{
-						Devices: devices,
-					},
+					*slice,
 				},
 			},
 		},
 	}
 
-	driver.healthcheck, err = startHealthcheck(ctx, config)
+	driver.healthcheck, err = startHealthcheck(ctx, driver.state.DriverName, config)
 	if err != nil {
 		return nil, fmt.Errorf("start healthcheck: %w", err)
 	}
@@ -123,12 +143,19 @@ func (d *driver) prepareResourceClaim(_ context.Context, claim *resourceapi.Reso
 	}
 	var prepared []kubeletplugin.Device
 	for _, preparedPB := range preparedPBs {
-		prepared = append(prepared, kubeletplugin.Device{
+		device := kubeletplugin.Device{
 			Requests:     preparedPB.GetRequestNames(),
 			PoolName:     preparedPB.GetPoolName(),
 			DeviceName:   preparedPB.GetDeviceName(),
-			CDIDeviceIDs: preparedPB.GetCDIDeviceIDs(),
-		})
+			CDIDeviceIDs: preparedPB.GetCdiDeviceIds(),
+		}
+		if d.consumableCapacityFeature {
+			shareIdStr := preparedPB.GetShareId()
+			if shareIdStr != "" {
+				device.ShareID = ptr.To(types.UID(shareIdStr))
+			}
+		}
+		prepared = append(prepared, device)
 	}
 
 	klog.Infof("Returning newly prepared devices for claim '%v': %v", claim.UID, prepared)

@@ -33,8 +33,6 @@ import (
 	"k8s.io/klog/v2"
 	drapb "k8s.io/kubelet/pkg/apis/dra/v1beta1"
 	registerapi "k8s.io/kubelet/pkg/apis/pluginregistration/v1"
-
-	"sigs.k8s.io/dra-example-driver/pkg/consts"
 )
 
 type healthcheck struct {
@@ -47,7 +45,7 @@ type healthcheck struct {
 	draClient drapb.DRAPluginClient
 }
 
-func startHealthcheck(ctx context.Context, config *Config) (*healthcheck, error) {
+func startHealthcheck(ctx context.Context, driverName string, config *Config) (*healthcheck, error) {
 	log := klog.FromContext(ctx)
 
 	port := config.flags.healthcheckPort
@@ -65,7 +63,7 @@ func startHealthcheck(ctx context.Context, config *Config) (*healthcheck, error)
 		Scheme: "unix",
 		// TODO: this needs to adapt when seamless upgrades
 		// are enabled and the filename includes a uid.
-		Path: path.Join(config.flags.kubeletRegistrarDirectoryPath, consts.DriverName+"-reg.sock"),
+		Path: path.Join(config.flags.kubeletRegistrarDirectoryPath, driverName+"-reg.sock"),
 	}).String()
 	log.Info("connecting to registration socket", "path", regSockPath)
 	regConn, err := grpc.NewClient(
@@ -78,7 +76,7 @@ func startHealthcheck(ctx context.Context, config *Config) (*healthcheck, error)
 
 	draSockPath := (&url.URL{
 		Scheme: "unix",
-		Path:   path.Join(config.DriverPluginPath(), "dra.sock"),
+		Path:   path.Join(config.DriverPluginPath(driverName), "dra.sock"),
 	}).String()
 	log.Info("connecting to DRA socket", "path", draSockPath)
 	draConn, err := grpc.NewClient(

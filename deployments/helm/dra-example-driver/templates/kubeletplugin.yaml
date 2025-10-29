@@ -87,6 +87,10 @@ spec:
           mountPath: {{ .Values.kubeletPlugin.kubeletPluginsDirectoryPath | quote }}
         - name: cdi
           mountPath: /var/run/cdi
+        {{- if and .Values.kubeletPlugin.configMap .Values.kubeletPlugin.configMap.enable }}
+        - name: config-volume
+          mountPath: /etc/config
+        {{- end }}
       volumes:
       - name: plugins-registry
         hostPath:
@@ -97,6 +101,11 @@ spec:
       - name: cdi
         hostPath:
           path: /var/run/cdi
+      {{- if and .Values.kubeletPlugin.configMap .Values.kubeletPlugin.configMap.enable }}
+      - name: config-volume
+        configMap:
+          name: {{ include "dra-example-driver.fullname" . }}-config
+      {{- end }}
       {{- with .Values.kubeletPlugin.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

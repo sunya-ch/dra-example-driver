@@ -1,0 +1,9 @@
+{{- if and .Values.kubeletPlugin.configMap .Values.kubeletPlugin.configMap.enable }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "dra-example-driver.fullname" . }}-config
+  namespace: {{ include "dra-example-driver.namespace" . }}
+data:
+{{ .Values.kubeletPlugin.configMap.data | toYaml | indent 2 }}
+{{- end }}
