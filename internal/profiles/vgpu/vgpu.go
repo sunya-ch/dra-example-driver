@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package net
+package vgpu
 
 import (
 	"fmt"
@@ -27,46 +27,34 @@ import (
 	cdiapi "tags.cncf.io/container-device-interface/pkg/cdi"
 	cdispec "tags.cncf.io/container-device-interface/specs-go"
 
-	configapi "sigs.k8s.io/dra-example-driver/api/example.com/resource/net/v1alpha1"
+	configapi "sigs.k8s.io/dra-example-driver/api/example.com/resource/gpu/v1alpha1"
 	"sigs.k8s.io/dra-example-driver/internal/profiles"
 	"sigs.k8s.io/dra-example-driver/internal/profiles/helpers"
 )
 
-const ProfileName = "net"
+const ProfileName = "vgpu"
 
 type Profile struct {
 	nodeName string
-	numNets  int
+	numGPUs  int
 }
 
-func NewProfile(nodeName string, numNets int) Profile {
+func NewProfile(nodeName string, numGPUs int) Profile {
 	return Profile{
 		nodeName: nodeName,
-		numNets:  numNets,
+		numGPUs:  numGPUs,
 	}
 }
 
 func (p Profile) EnumerateDevices() (resourceslice.DriverResources, error) {
 	seed := p.nodeName
-	uuids := helpers.GenerateUUIDs(seed, "net", p.numNets)
-
-	// bandwidth capacity commonly defined for both ingress and egress
-	bandwidthCapacity := resourceapi.DeviceCapacity{
-		Value: resource.MustParse("100Gi"),
-		RequestPolicy: &resourceapi.CapacityRequestPolicy{
-			Default: ptr.To(resource.MustParse("1Gi")), // equal division 100Gi / 100
-			ValidRange: &resourceapi.CapacityRequestPolicyRange{
-				Min:  ptr.To(resource.MustParse("100Mi")), // prevent zero-consuming
-				Max:  ptr.To(resource.MustParse("100Gi")), // optional
-				Step: ptr.To(resource.MustParse("1Mi")),
-			},
-		},
-	}
+	uuids := helpers.GenerateUUIDs(seed, "gpu", p.numGPUs)
 
 	var devices []resourceapi.Device
 	for i, uuid := range uuids {
 		device := resourceapi.Device{
-			Name: fmt.Sprintf("nic-%d", i),
+			Name:                     fmt.Sprintf("gpu-%d", i),
+			AllowMultipleAllocations: ptr.To(true),
 			Attributes: map[resourceapi.QualifiedName]resourceapi.DeviceAttribute{
 				"index": {
 					IntValue: ptr.To(int64(i)),
@@ -75,24 +63,33 @@ func (p Profile) EnumerateDevices() (resourceslice.DriverResources, error) {
 					StringValue: ptr.To(uuid),
 				},
 				"model": {
-					StringValue: ptr.To("LATEST-NET-MODEL"),
+					StringValue: ptr.To("LATEST-GPU-MODEL"),
 				},
 				"driverVersion": {
 					VersionValue: ptr.To("1.0.0"),
 				},
 			},
 			Capacity: map[resourceapi.QualifiedName]resourceapi.DeviceCapacity{
-				"vfs": {
+				"compute": {
 					Value: resource.MustParse("100"),
 					RequestPolicy: &resourceapi.CapacityRequestPolicy{
-						Default: ptr.To(resource.MustParse("1")),
-						ValidValues: []resource.Quantity{
-							resource.MustParse("1"), // always consume 1
+						Default: ptr.To(resource.MustParse("10")),
+						ValidRange: &resourceapi.CapacityRequestPolicyRange{
+							Min:  ptr.To(resource.MustParse("10")),
+							Step: ptr.To(resource.MustParse("10")),
 						},
 					},
 				},
-				"ingressBandwidth": bandwidthCapacity,
-				"egressBandwidth":  bandwidthCapacity,
+				"memory": {
+					Value: resource.MustParse("80Gi"),
+					RequestPolicy: &resourceapi.CapacityRequestPolicy{
+						Default: ptr.To(resource.MustParse("4Gi")),
+						ValidRange: &resourceapi.CapacityRequestPolicyRange{
+							Min:  ptr.To(resource.MustParse("4Gi")),
+							Step: ptr.To(resource.MustParse("4Gi")),
+						},
+					},
+				},
 			},
 		}
 		devices = append(devices, device)
@@ -122,37 +119,50 @@ func (p Profile) SchemeBuilder() runtime.SchemeBuilder {
 
 // Validate implements [profiles.ConfigHandler].
 func (p Profile) Validate(config runtime.Object) error {
-	netConfig, ok := config.(*configapi.NetConfig)
+	gpuConfig, ok := config.(*configapi.GpuConfig)
 	if !ok {
-		return fmt.Errorf("expected v1alpha1.NetConfig but got: %T", config)
+		return fmt.Errorf("expected v1alpha1.GpuConfig but got: %T", config)
 	}
-	return netConfig.Validate()
+	return gpuConfig.Validate()
 }
 
-// DefaultSetup sets common env.
+// DefaultSetup sets MPS environmental variables.
 func (p Profile) DefaultSetup(results []resourceapi.DeviceRequestAllocationResult) (profiles.PerDeviceCDIContainerEdits, error) {
 	perDeviceEdits := make(profiles.PerDeviceCDIContainerEdits)
 
 	for _, result := range results {
+		gpuIndex := result.Device[4:]
 		envs := []string{
-			fmt.Sprintf("NET_DEVICE_%s=%s", result.Device[4:], result.Device),
+			fmt.Sprintf("GPU_DEVICE_%s=%s", gpuIndex, result.Device),
 		}
+		if computePercent, found := result.ConsumedCapacity[resourceapi.QualifiedName("compute")]; found {
+			envs = append(envs, fmt.Sprintf("GPU_DEVICE_%s_ACTIVE_THREAD_PERCENTAGE=%s", gpuIndex, computePercent.String()))
+		} else {
+			return nil, fmt.Errorf("error setting GPU sharing: no consumed compute capacity")
+		}
+		if memory, found := result.ConsumedCapacity[resourceapi.QualifiedName("memory")]; found {
+			envs = append(envs, fmt.Sprintf("GPU_DEVICE_%s_MEMORY_LIMIT=%v", gpuIndex, memory.String()))
+		} else {
+			return nil, fmt.Errorf("error setting GPU sharing: no consumed compute capacity")
+		}
+
 		edits := &cdispec.ContainerEdits{
 			Env: envs,
 		}
 
 		perDeviceEdits[result.Device] = &cdiapi.ContainerEdits{ContainerEdits: edits}
 	}
+
 	return make(profiles.PerDeviceCDIContainerEdits), nil
 }
 
 // ApplyConfig implements [profiles.ConfigHandler].
 func (p Profile) ApplyConfig(config runtime.Object, results []*resourceapi.DeviceRequestAllocationResult) (profiles.PerDeviceCDIContainerEdits, error) {
 	if config == nil {
-		config = configapi.DefaultNetConfig()
+		config = configapi.DefaultGpuConfig()
 	}
-	if config, ok := config.(*configapi.NetConfig); ok {
-		return applyNetConfig(config, results)
+	if config, ok := config.(*configapi.GpuConfig); ok {
+		return applyGpuConfig(config, results)
 	}
 	return nil, fmt.Errorf("runtime object is not a recognized configuration")
 }
@@ -161,41 +171,17 @@ func (p Profile) ApplyConfig(config runtime.Object, results []*resourceapi.Devic
 // define a set of environment variables to be injected into the containers
 // that include a given device. A real driver would likely need to do some sort
 // of hardware configuration as well, based on the config passed in.
-func applyNetConfig(config *configapi.NetConfig, results []*resourceapi.DeviceRequestAllocationResult) (profiles.PerDeviceCDIContainerEdits, error) {
+func applyGpuConfig(config *configapi.GpuConfig, results []*resourceapi.DeviceRequestAllocationResult) (profiles.PerDeviceCDIContainerEdits, error) {
 	perDeviceEdits := make(profiles.PerDeviceCDIContainerEdits)
 
 	// Normalize the config to set any implied defaults.
 	if err := config.Normalize(); err != nil {
-		return nil, fmt.Errorf("error normalizing Net config: %w", err)
+		return nil, fmt.Errorf("error normalizing GPU config: %w", err)
 	}
 
 	// Validate the config to ensure its integrity.
 	if err := config.Validate(); err != nil {
-		return nil, fmt.Errorf("error validating Net config: %w", err)
-	}
-
-	for _, result := range results {
-		envs := []string{}
-		if config.BandwidthBurst != nil {
-			if config.BandwidthBurst.IngressBurst > 0 {
-				envs = append(envs, fmt.Sprintf("NET_DEVICE_%s_INGRESS_BURST=%d", result.Device[4:], config.BandwidthBurst.IngressBurst))
-			}
-			if config.BandwidthBurst.EgressBurst > 0 {
-				envs = append(envs, fmt.Sprintf("NET_DEVICE_%s_EGRESS_BURST=%d", result.Device[4:], config.BandwidthBurst.EgressBurst))
-			}
-		}
-		if ingressRate, found := result.ConsumedCapacity["ingressBandwidth"]; found {
-			envs = append(envs, fmt.Sprintf("NET_DEVICE_%s_INGRESS_RATE=%d", result.Device[4:], ingressRate.AsDec()))
-		}
-		if egressRate, found := result.ConsumedCapacity["egressBandwidth"]; found {
-			envs = append(envs, fmt.Sprintf("NET_DEVICE_%s_EGRESS_RATE=%d", result.Device[4:], egressRate.AsDec()))
-		}
-
-		edits := &cdispec.ContainerEdits{
-			Env: envs,
-		}
-
-		perDeviceEdits[result.Device] = &cdiapi.ContainerEdits{ContainerEdits: edits}
+		return nil, fmt.Errorf("error validating GPU config: %w", err)
 	}
 
 	return perDeviceEdits, nil

@@ -231,6 +231,15 @@ func (s *DeviceState) prepareDevices(claim *resourceapi.ResourceClaim) (profiles
 	// Track container edits generated from applying the config to the set
 	// of device allocation results.
 	perDeviceCDIContainerEdits := make(profiles.PerDeviceCDIContainerEdits)
+	defaultEdits, err := s.configHandler.DefaultSetup(claim.Status.Allocation.Devices.Results)
+	if err != nil {
+		return nil, fmt.Errorf("error applying default setup: %w", err)
+	}
+	if defaultEdits != nil {
+		for k, v := range defaultEdits {
+			perDeviceCDIContainerEdits[k] = v
+		}
+	}
 	for config, results := range configResultsMap {
 		// Apply the config to the list of results associated with it.
 		containerEdits, err := s.configHandler.ApplyConfig(config, results)
@@ -240,7 +249,15 @@ func (s *DeviceState) prepareDevices(claim *resourceapi.ResourceClaim) (profiles
 
 		// Merge any new container edits with the overall per device map.
 		for k, v := range containerEdits {
-			perDeviceCDIContainerEdits[k] = v
+			if defaultSetup, found := perDeviceCDIContainerEdits[k]; found {
+				if defaultSetup != nil {
+					perDeviceCDIContainerEdits[k] = defaultSetup.Append(v)
+				} else {
+					perDeviceCDIContainerEdits[k] = v
+				}
+			} else {
+				perDeviceCDIContainerEdits[k] = v
+			}
 		}
 	}
 

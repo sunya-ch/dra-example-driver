@@ -108,6 +108,24 @@ func (p Profile) Validate(config runtime.Object) error {
 	return gpuConfig.Validate()
 }
 
+// DefaultSetup sets common env.
+func (p Profile) DefaultSetup(results []resourceapi.DeviceRequestAllocationResult) (profiles.PerDeviceCDIContainerEdits, error) {
+	perDeviceEdits := make(profiles.PerDeviceCDIContainerEdits)
+
+	for _, result := range results {
+		envs := []string{
+			fmt.Sprintf("GPU_DEVICE_%s=%s", result.Device[4:], result.Device),
+		}
+
+		edits := &cdispec.ContainerEdits{
+			Env: envs,
+		}
+
+		perDeviceEdits[result.Device] = &cdiapi.ContainerEdits{ContainerEdits: edits}
+	}
+	return perDeviceEdits, nil
+}
+
 // ApplyConfig implements [profiles.ConfigHandler].
 func (p Profile) ApplyConfig(config runtime.Object, results []*resourceapi.DeviceRequestAllocationResult) (profiles.PerDeviceCDIContainerEdits, error) {
 	if config == nil {
@@ -137,9 +155,7 @@ func applyGpuConfig(config *configapi.GpuConfig, results []*resourceapi.DeviceRe
 	}
 
 	for _, result := range results {
-		envs := []string{
-			fmt.Sprintf("GPU_DEVICE_%s=%s", result.Device[4:], result.Device),
-		}
+		envs := []string{}
 
 		if config.Sharing != nil {
 			envs = append(envs, fmt.Sprintf("GPU_DEVICE_%s_SHARING_STRATEGY=%s", result.Device[4:], config.Sharing.Strategy))
