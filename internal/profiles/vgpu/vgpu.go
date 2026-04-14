@@ -23,6 +23,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/dynamic-resource-allocation/resourceslice"
+	"k8s.io/klog/v2"
 	"k8s.io/utils/ptr"
 	cdiapi "tags.cncf.io/container-device-interface/pkg/cdi"
 	cdispec "tags.cncf.io/container-device-interface/specs-go"
@@ -131,6 +132,8 @@ func (p Profile) DefaultSetup(results []resourceapi.DeviceRequestAllocationResul
 	perDeviceEdits := make(profiles.PerDeviceCDIContainerEdits)
 
 	for _, result := range results {
+		shareId := (*string)(result.ShareID)
+		deviceId := helpers.GetCDIDeviceID(result.Device, shareId)
 		gpuIndex := result.Device[4:]
 		envs := []string{
 			fmt.Sprintf("GPU_DEVICE_%s=%s", gpuIndex, result.Device),
@@ -150,10 +153,12 @@ func (p Profile) DefaultSetup(results []resourceapi.DeviceRequestAllocationResul
 			Env: envs,
 		}
 
-		perDeviceEdits[result.Device] = &cdiapi.ContainerEdits{ContainerEdits: edits}
+		klog.Infof("default setup env: %v", envs)
+
+		perDeviceEdits[deviceId] = &cdiapi.ContainerEdits{ContainerEdits: edits}
 	}
 
-	return make(profiles.PerDeviceCDIContainerEdits), nil
+	return perDeviceEdits, nil
 }
 
 // ApplyConfig implements [profiles.ConfigHandler].

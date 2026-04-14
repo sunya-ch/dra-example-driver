@@ -134,6 +134,8 @@ func (p Profile) DefaultSetup(results []resourceapi.DeviceRequestAllocationResul
 	perDeviceEdits := make(profiles.PerDeviceCDIContainerEdits)
 
 	for _, result := range results {
+		shareId := (*string)(result.ShareID)
+		deviceId := helpers.GetCDIDeviceID(result.Device, shareId)
 		envs := []string{
 			fmt.Sprintf("NET_DEVICE_%s=%s", result.Device[4:], result.Device),
 		}
@@ -141,9 +143,9 @@ func (p Profile) DefaultSetup(results []resourceapi.DeviceRequestAllocationResul
 			Env: envs,
 		}
 
-		perDeviceEdits[result.Device] = &cdiapi.ContainerEdits{ContainerEdits: edits}
+		perDeviceEdits[deviceId] = &cdiapi.ContainerEdits{ContainerEdits: edits}
 	}
-	return make(profiles.PerDeviceCDIContainerEdits), nil
+	return perDeviceEdits, nil
 }
 
 // ApplyConfig implements [profiles.ConfigHandler].
@@ -175,6 +177,8 @@ func applyNetConfig(config *configapi.NetConfig, results []*resourceapi.DeviceRe
 	}
 
 	for _, result := range results {
+		shareId := (*string)(result.ShareID)
+		deviceId := helpers.GetCDIDeviceID(result.Device, shareId)
 		envs := []string{}
 		if config.BandwidthBurst != nil {
 			if config.BandwidthBurst.IngressBurst > 0 {
@@ -195,7 +199,7 @@ func applyNetConfig(config *configapi.NetConfig, results []*resourceapi.DeviceRe
 			Env: envs,
 		}
 
-		perDeviceEdits[result.Device] = &cdiapi.ContainerEdits{ContainerEdits: edits}
+		perDeviceEdits[deviceId] = &cdiapi.ContainerEdits{ContainerEdits: edits}
 	}
 
 	return perDeviceEdits, nil

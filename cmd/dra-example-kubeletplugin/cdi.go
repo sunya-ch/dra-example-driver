@@ -27,6 +27,7 @@ import (
 	cdispec "tags.cncf.io/container-device-interface/specs-go"
 
 	"sigs.k8s.io/dra-example-driver/internal/profiles"
+	"sigs.k8s.io/dra-example-driver/internal/profiles/helpers"
 )
 
 const cdiCommonDeviceName = "common"
@@ -57,7 +58,8 @@ func NewCDIHandler(root string, driverName, class string) (*CDIHandler, error) {
 
 func (cdi *CDIHandler) CreateCommonSpecFile() error {
 	spec := &cdispec.Spec{
-		Kind: cdi.kind(),
+		Version: cdispec.CurrentVersion,
+		Kind:    cdi.kind(),
 		Devices: []cdispec.Device{
 			{
 				Name: cdiCommonDeviceName,
@@ -71,12 +73,6 @@ func (cdi *CDIHandler) CreateCommonSpecFile() error {
 		},
 	}
 
-	minVersion, err := cdiapi.MinimumRequiredVersion(spec)
-	if err != nil {
-		return fmt.Errorf("failed to get minimum required CDI spec version: %v", err)
-	}
-	spec.Version = minVersion
-
 	specName, err := cdiapi.GenerateNameForTransientSpec(spec, cdiCommonDeviceName)
 	if err != nil {
 		return fmt.Errorf("failed to generate Spec name: %w", err)
@@ -89,21 +85,22 @@ func (cdi *CDIHandler) CreateClaimSpecFile(claimUID string, devices profiles.Pre
 	specName := cdiapi.GenerateTransientSpecName(cdi.vendor(), cdi.class, claimUID)
 
 	spec := &cdispec.Spec{
+		Version: cdispec.CurrentVersion,
 		Kind:    cdi.kind(),
 		Devices: []cdispec.Device{},
 	}
 
 	for _, device := range devices {
 		deviceEnvKey := strings.ToUpper(nonWord.ReplaceAllString(device.DeviceName, "_"))
-		claimEdits := cdiapi.ContainerEdits{
+		claimEdits := &cdiapi.ContainerEdits{
 			ContainerEdits: &cdispec.ContainerEdits{
 				Env: []string{
 					fmt.Sprintf("%s_DEVICE_%s_RESOURCE_CLAIM=%s", strings.ToUpper(cdi.class), deviceEnvKey, claimUID),
 				},
 			},
 		}
-		claimEdits.Append(device.ContainerEdits)
-		deviceId := cdi.getCDIDeviceID(device.DeviceName, device.ShareId)
+		claimEdits = claimEdits.Append(device.ContainerEdits)
+		deviceId := helpers.GetCDIDeviceID(device.DeviceName, device.ShareId)
 		cdiDevice := cdispec.Device{
 			Name:           fmt.Sprintf("%s-%s", claimUID, deviceId),
 			ContainerEdits: *claimEdits.ContainerEdits,
@@ -111,12 +108,6 @@ func (cdi *CDIHandler) CreateClaimSpecFile(claimUID string, devices profiles.Pre
 
 		spec.Devices = append(spec.Devices, cdiDevice)
 	}
-
-	minVersion, err := cdiapi.MinimumRequiredVersion(spec)
-	if err != nil {
-		return fmt.Errorf("failed to get minimum required CDI spec version: %v", err)
-	}
-	spec.Version = minVersion
 
 	return cdi.cache.WriteSpec(spec, specName)
 }
@@ -145,11 +136,4 @@ func (cdi *CDIHandler) kind() string {
 
 func (cdi *CDIHandler) vendor() string {
 	return "k8s." + cdi.driverName
-}
-
-func (cdi *CDIHandler) getCDIDeviceID(device string, shareId *string) string {
-	if shareId != nil {
-		return fmt.Sprintf("%s-%s", device, *shareId)
-	}
-	return device
 }
