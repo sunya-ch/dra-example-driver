@@ -135,7 +135,7 @@ func newApp() *cli.App {
 				Handler: mux,
 				Addr:    fmt.Sprintf(":%d", flags.port),
 			}
-			klog.Info("starting webhook server on", server.Addr)
+			klog.Background().Info("starting webhook server on", "address", server.Addr)
 			return server.ListenAndServeTLS(flags.certFile, flags.keyFile)
 		},
 	}
@@ -181,11 +181,12 @@ func serveResourceClaim(configDecoder runtime.Decoder, validate validator, drive
 // serve handles the http portion of a request prior to handing to an admit
 // function.
 func serve(w http.ResponseWriter, r *http.Request, admit func(admissionv1.AdmissionReview) *admissionv1.AdmissionResponse) {
+	logger := klog.Background()
 	var body []byte
 	if r.Body != nil {
 		data, err := io.ReadAll(r.Body)
 		if err != nil {
-			klog.Error(err)
+			logger.Error(err, "failed to read request body")
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -196,17 +197,17 @@ func serve(w http.ResponseWriter, r *http.Request, admit func(admissionv1.Admiss
 	contentType := r.Header.Get("Content-Type")
 	if contentType != "application/json" {
 		msg := fmt.Sprintf("contentType=%s, expected application/json", contentType)
-		klog.Error(msg)
+		logger.Error(nil, msg)
 		http.Error(w, msg, http.StatusUnsupportedMediaType)
 		return
 	}
 
-	klog.V(2).Infof("handling request: %s", body)
+	logger.V(2).Info("handling request", "body", string(body))
 
 	requestedAdmissionReview, err := readAdmissionReview(body)
 	if err != nil {
 		msg := fmt.Sprintf("failed to read AdmissionReview from request body: %v", err)
-		klog.Error(msg)
+		logger.Error(nil, msg)
 		http.Error(w, msg, http.StatusBadRequest)
 		return
 	}
@@ -215,16 +216,16 @@ func serve(w http.ResponseWriter, r *http.Request, admit func(admissionv1.Admiss
 	responseAdmissionReview.Response = admit(*requestedAdmissionReview)
 	responseAdmissionReview.Response.UID = requestedAdmissionReview.Request.UID
 
-	klog.V(2).Infof("sending response: %v", responseAdmissionReview)
+	logger.V(2).Info("sending response", "response", responseAdmissionReview)
 	respBytes, err := json.Marshal(responseAdmissionReview)
 	if err != nil {
-		klog.Error(err)
+		logger.Error(err, "failed to marshal response")
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
 	if _, err := w.Write(respBytes); err != nil {
-		klog.Error(err)
+		logger.Error(err, "failed to write response")
 	}
 }
 
@@ -251,7 +252,8 @@ func readAdmissionReview(data []byte) (*admissionv1.AdmissionReview, error) {
 // opaque device configuration parameters for this driver.
 func admitResourceClaimParameters(configDecoder runtime.Decoder, validate validator, driverName string) func(ar admissionv1.AdmissionReview) *admissionv1.AdmissionResponse {
 	return func(ar admissionv1.AdmissionReview) *admissionv1.AdmissionResponse {
-		klog.V(2).Info("admitting resource claim parameters")
+		logger := klog.Background()
+		logger.V(2).Info("admitting resource claim parameters")
 
 		var deviceConfigs []resourceapi.DeviceClaimConfiguration
 		var specPath string
@@ -260,7 +262,7 @@ func admitResourceClaimParameters(configDecoder runtime.Decoder, validate valida
 		case resourceClaimResourceV1, resourceClaimResourceV1Beta1, resourceClaimResourceV1Beta2:
 			claim, err := extractResourceClaim(ar)
 			if err != nil {
-				klog.Error(err)
+				logger.Error(err, "failed to extract resource claim")
 				return &admissionv1.AdmissionResponse{
 					Result: &metav1.Status{
 						Message: err.Error(),
@@ -273,7 +275,7 @@ func admitResourceClaimParameters(configDecoder runtime.Decoder, validate valida
 		case resourceClaimTemplateResourceV1, resourceClaimTemplateResourceV1Beta1, resourceClaimTemplateResourceV1Beta2:
 			claimTemplate, err := extractResourceClaimTemplate(ar)
 			if err != nil {
-				klog.Error(err)
+				logger.Error(err, "failed to extract resource claim template")
 				return &admissionv1.AdmissionResponse{
 					Result: &metav1.Status{
 						Message: err.Error(),
@@ -292,7 +294,7 @@ func admitResourceClaimParameters(configDecoder runtime.Decoder, validate valida
 				},
 				ar.Request.Resource,
 			)
-			klog.Error(msg)
+			logger.Error(nil, msg)
 			return &admissionv1.AdmissionResponse{
 				Result: &metav1.Status{
 					Message: msg,
@@ -325,7 +327,7 @@ func admitResourceClaimParameters(configDecoder runtime.Decoder, validate valida
 				errMsgs = append(errMsgs, err.Error())
 			}
 			msg := fmt.Sprintf("%d configs failed to validate: %s", len(errs), strings.Join(errMsgs, "; "))
-			klog.Error(msg)
+			logger.Error(nil, msg)
 			return &admissionv1.AdmissionResponse{
 				Result: &metav1.Status{
 					Message: msg,
