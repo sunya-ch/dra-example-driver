@@ -41,6 +41,8 @@ kubeletPlugin:
   # numDevices describes how many devices to advertise on each node when the "gpu" or "net"
   # deviceProfile is used. Not relevant for other profiles.
   numDevices: 8
+  # modelName describes the GPU model name. Only relevant for the vgpu profile.
+  modelName: "NVIDIA-A100-SXM4-80GB"
   priorityClassName: "system-node-critical"
   updateStrategy:
     type: RollingUpdate

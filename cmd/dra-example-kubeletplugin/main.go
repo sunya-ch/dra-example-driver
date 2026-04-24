@@ -50,6 +50,7 @@ type Flags struct {
 	nodeName                      string
 	cdiRoot                       string
 	numDevices                    int
+	modelName                     string
 	kubeletRegistrarDirectoryPath string
 	kubeletPluginsDirectoryPath   string
 	healthcheckPort               int
@@ -73,7 +74,7 @@ var validProfiles = map[string]func(flags Flags) profiles.Profile{
 		return net.NewProfile(flags.nodeName, flags.numDevices)
 	},
 	vgpu.ProfileName: func(flags Flags) profiles.Profile {
-		return vgpu.NewProfile(flags.nodeName, flags.numDevices)
+		return vgpu.NewProfile(flags.nodeName, flags.numDevices, flags.modelName)
 	},
 	mig.ProfileName: func(flags Flags) profiles.Profile {
 		return mig.NewProfile(flags.nodeName, flags.numDevices)
@@ -124,6 +125,13 @@ func newApp() *cli.App {
 			Value:       8,
 			Destination: &flags.numDevices,
 			EnvVars:     []string{"NUM_DEVICES"},
+		},
+		&cli.StringFlag{
+			Name:        "model-name",
+			Usage:       "The model name of the GPU devices. Only relevant for the vgpu profile.",
+			Value:       "NVIDIA-A100-SXM4-80GB",
+			Destination: &flags.modelName,
+			EnvVars:     []string{"MODEL_NAME"},
 		},
 		&cli.StringFlag{
 			Name:        "kubelet-registrar-directory-path",

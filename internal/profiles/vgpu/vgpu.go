@@ -36,14 +36,16 @@ import (
 const ProfileName = "vgpu"
 
 type Profile struct {
-	nodeName string
-	numGPUs  int
+	nodeName  string
+	numGPUs   int
+	modelName string
 }
 
-func NewProfile(nodeName string, numGPUs int) Profile {
+func NewProfile(nodeName string, numGPUs int, modelName string) Profile {
 	return Profile{
-		nodeName: nodeName,
-		numGPUs:  numGPUs,
+		nodeName:  nodeName,
+		numGPUs:   numGPUs,
+		modelName: modelName,
 	}
 }
 
@@ -64,7 +66,7 @@ func (p Profile) EnumerateDevices() (resourceslice.DriverResources, error) {
 					StringValue: ptr.To(uuid),
 				},
 				"model": {
-					StringValue: ptr.To("LATEST-GPU-MODEL"),
+					StringValue: ptr.To(p.modelName),
 				},
 				"driverVersion": {
 					VersionValue: ptr.To("1.0.0"),
@@ -135,7 +137,9 @@ func (p Profile) DefaultSetup(results []resourceapi.DeviceRequestAllocationResul
 		shareId := (*string)(result.ShareID)
 		deviceId := helpers.GetCDIDeviceID(result.Device, shareId)
 		gpuIndex := result.Device[4:]
+
 		envs := []string{
+			fmt.Sprintf("GPU_MODEL_NAME_%s=%s", gpuIndex, p.modelName),
 			fmt.Sprintf("GPU_DEVICE_%s=%s", gpuIndex, result.Device),
 		}
 		if computePercent, found := result.ConsumedCapacity[resourceapi.QualifiedName("compute")]; found {
@@ -153,7 +157,7 @@ func (p Profile) DefaultSetup(results []resourceapi.DeviceRequestAllocationResul
 			Env: envs,
 		}
 
-		klog.Infof("default setup env: %v", envs)
+		klog.Background().Info("default setup env", "envs", envs)
 
 		perDeviceEdits[deviceId] = &cdiapi.ContainerEdits{ContainerEdits: edits}
 	}
