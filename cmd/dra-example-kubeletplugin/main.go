@@ -34,6 +34,7 @@ import (
 	"sigs.k8s.io/dra-example-driver/internal/profiles"
 	"sigs.k8s.io/dra-example-driver/internal/profiles/cpu"
 	"sigs.k8s.io/dra-example-driver/internal/profiles/gpu"
+	"sigs.k8s.io/dra-example-driver/internal/profiles/vgpu"
 	"sigs.k8s.io/dra-example-driver/pkg/flags"
 )
 
@@ -48,6 +49,7 @@ type Flags struct {
 	nodeName                      string
 	cdiRoot                       string
 	numDevices                    int
+	modelName                     string
 	kubeletRegistrarDirectoryPath string
 	kubeletPluginsDirectoryPath   string
 	healthcheckPort               int
@@ -75,6 +77,9 @@ var validProfiles = map[string]func(flags Flags) profiles.Profile{
 	},
 	cpu.ProfileName: func(flags Flags) profiles.Profile {
 		return cpu.NewProfile(flags.nodeName, flags.driverName, flags.cpuNUMANodes, flags.cpusPerNUMANode)
+	},
+	vgpu.ProfileName: func(flags Flags) profiles.Profile {
+		return vgpu.NewProfile(flags.nodeName, flags.numDevices, flags.modelName)
 	},
 }
 
@@ -122,6 +127,13 @@ func newApp() *cli.App {
 			Value:       8,
 			Destination: &flags.numDevices,
 			EnvVars:     []string{"NUM_DEVICES"},
+		},
+		&cli.StringFlag{
+			Name:        "model-name",
+			Usage:       "The model name of the GPU devices. Only relevant for the vgpu profile.",
+			Value:       "NVIDIA-A100-SXM4-80GB",
+			Destination: &flags.modelName,
+			EnvVars:     []string{"MODEL_NAME"},
 		},
 		&cli.StringFlag{
 			Name:        "kubelet-registrar-directory-path",

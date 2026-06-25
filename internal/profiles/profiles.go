@@ -39,6 +39,8 @@ type ConfigHandler interface {
 	SchemeBuilder() runtime.SchemeBuilder
 	// Validate returns nil for valid configuration, or an error explaining why the configuration is invalid.
 	Validate(config runtime.Object) error
+	// DefaultSetup applies default setup according to allocation results.
+	DefaultSetup(results []resourceapi.DeviceRequestAllocationResult) (PerDeviceCDIContainerEdits, error)
 	// ApplyConfig applies a configuration to a set of device allocation
 	// results. When `config` is nil, the profile's default configuration should
 	// be applied.

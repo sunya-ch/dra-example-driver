@@ -104,6 +104,11 @@ func (p Profile) Validate(config runtime.Object) error {
 	return nil
 }
 
+// DefaultSetup sets common env.
+func (p Profile) DefaultSetup(results []resourceapi.DeviceRequestAllocationResult) (profiles.PerDeviceCDIContainerEdits, error) {
+	return profiles.PerDeviceCDIContainerEdits{}, nil
+}
+
 // ApplyConfig implements [profiles.ConfigHandler]. It rejects any non-nil
 // configuration and otherwise injects env vars per allocated NUMA device so
 // the demo container can show which device was allocated and how much CPU

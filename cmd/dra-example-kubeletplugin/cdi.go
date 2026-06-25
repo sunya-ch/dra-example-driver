@@ -95,7 +95,7 @@ func (cdi *CDIHandler) CreateClaimSpecFile(claimUID string, devices PreparedDevi
 
 	for _, device := range devices {
 		deviceEnvKey := strings.ToUpper(nonWord.ReplaceAllString(device.DeviceName, "_"))
-		claimEdits := cdiapi.ContainerEdits{
+		claimEdits := &cdiapi.ContainerEdits{
 			ContainerEdits: &cdispec.ContainerEdits{
 				Env: []string{
 					fmt.Sprintf("%s_DEVICE_%s_RESOURCE_CLAIM=%s", strings.ToUpper(cdi.class), deviceEnvKey, claimUID),

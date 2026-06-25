@@ -36,6 +36,7 @@ import (
 
 	configapi "sigs.k8s.io/dra-example-driver/api/example.com/resource/gpu/v1alpha1"
 	"sigs.k8s.io/dra-example-driver/internal/profiles"
+	"sigs.k8s.io/dra-example-driver/internal/profiles/helpers"
 )
 
 const (
@@ -64,7 +65,7 @@ func NewProfile(nodeName string, numGPUs int, partitionsPerGPU int, enableDevice
 
 func (p Profile) EnumerateDevices() (resourceslice.DriverResources, error) {
 	seed := p.nodeName
-	uuids := generateUUIDs(seed, p.numGPUs)
+	uuids := helpers.GenerateUUIDs(seed, "gpu", p.numGPUs)
 
 	memoryPerGPU := resource.MustParse("80Gi")
 	computePerGPU := resource.MustParse("100")
@@ -254,6 +255,11 @@ func (p Profile) ApplyConfig(config runtime.Object, results []*resourceapi.Devic
 
 func envVarSafeID(id string) string {
 	return strings.ToUpper(strings.ReplaceAll(id, "-", "_"))
+}
+
+// DefaultSetup sets common env.
+func (p Profile) DefaultSetup(results []resourceapi.DeviceRequestAllocationResult) (profiles.PerDeviceCDIContainerEdits, error) {
+	return profiles.PerDeviceCDIContainerEdits{}, nil
 }
 
 // In this example driver there is no actual configuration applied. We simply
